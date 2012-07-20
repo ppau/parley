@@ -48,27 +48,27 @@ def create_html5_page(title, head=[], body=[]):
 
 def create_css():
     return """<style type="text/css">
-		.signature-form {
-			font-family: sans-serif;
-		}
+        .signature-form {
+            font-family: sans-serif;
+        }
         .signature-form label {
             display: block;
         }
-		.signature-form input[type='text'], 
-		.signature-form input[type='email'],
-		.signature-form textarea {
-			box-sizing: border-box;
-			width: 100%;
-		}
-		.signature-form textarea {
-			resize: vertical;
-			min-height: 60px;
-		}
-		.signature-form .radio {
-			display: inline-block; *display: inline; zoom: 1;
-			width: 50px;
-			padding-left: 10px;
-		}
+        .signature-form input[type='text'], 
+        .signature-form input[type='email'],
+        .signature-form textarea {
+            box-sizing: border-box;
+            width: 100%;
+        }
+        .signature-form textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+        .signature-form .radio {
+            display: inline-block; *display: inline; zoom: 1;
+            width: 50px;
+            padding-left: 10px;
+        }
     </style>"""
 
 
@@ -103,10 +103,10 @@ def create_signature_form():
                     <td colspan='2'>
                         <span>Are you Australian?</span>
                         <div class='radio'>
-                        	<input type='radio' id="is_australian_true" name="is_australian" value="true"> Yes
+                            <input type='radio' id="is_australian_true" name="is_australian" value="true"> Yes
                         </div>
-						<div class='radio'>
-							<input type='radio' id="is_australian_false" name="is_australian" value="false"> No
+                        <div class='radio'>
+                            <input type='radio' id="is_australian_false" name="is_australian" value="false"> No
                         </div>
                     </td>
                 </tr>
@@ -129,7 +129,7 @@ class PetitionHandler(tornado.web.RequestHandler):
         
         chunk = ("<header>\n<h1>%s</h1>\n<p>%s</p>\n</header>\n" 
                 % (petition['title'], petition['message']))
-		head = [create_css()]
+        head = [create_css()]
         body = [chunk, create_signature_form()]
         
         self.write(create_html5_page(petition['title'], head, body))
