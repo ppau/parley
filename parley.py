@@ -4,21 +4,21 @@ import datetime
 import pymongo
 
 from tornado.web import HTTPError
-from dictshield.document import Document, EmbeddedDocument
-from dictshield.forms import Form
-from dictshield.fields.compound import ListField, EmbeddedDocumentField
+from dictshield.document import Document
+from dictshield.fields.mongo import ObjectIdField
 from dictshield.fields import (StringField, 
                                BooleanField, 
-                               EmailField, 
+                               EmailField,
                                DateTimeField)
 
 
-class Signature(EmbeddedDocument):
+class Signature(Document):
     first_name = StringField(max_length=200, required=True)
     last_name = StringField(max_length=200, required=True)
     email = EmailField(max_length=200, required=True)
     comment = StringField(max_length=140)
     is_australian = BooleanField(required=True)
+    pid = ObjectIdField(required=True) 
     signed_on = DateTimeField(required=True)
 
 
@@ -26,7 +26,16 @@ class Petition(Document):
     sid = StringField(max_length=4096)
     title = StringField(max_length=4096)
     message = StringField(max_length=4096)
-    signatures = ListField(EmbeddedDocumentField(Signature))
+
+
+def get_fields(shield):
+    x = shield.to_python()
+    for k in shield._fields.keys():
+        if k not in x:
+            x[k] = ""
+    del x["_types"]
+    del x["_cls"]
+    return x
 
 
 def create_html5_page(title, head=[], body=[]):
@@ -46,19 +55,42 @@ def create_html5_page(title, head=[], body=[]):
     )
 
 
+def create_table(table, headers=None):
+    x = []
+
+    for row in table:
+        x.append("<td>" + "</td><td>".join(row) +  "</td>")
+    
+    tbody = "<tbody><tr>" + "</tr><tr>".join(x) + "</tr></tbody>"
+    
+    thead = ""
+    if headers:
+        thead = "<thead><th>" + "</th><th>".join(headers) + "</th></thead>"
+    
+    return "<table>" + thead + tbody + "</table>"
+
+
 def create_css():
     return """<style type="text/css">
         .signature-form {
             font-family: sans-serif;
+        }
+        .signature-form .error {
+            color: red;
+        }
+        .signature-form .error > input {
+            background-color: pink;
         }
         .signature-form label {
             display: block;
         }
         .signature-form input[type='text'], 
         .signature-form input[type='email'],
+        .signature-form input[type='submit'],
         .signature-form textarea {
             box-sizing: border-box;
             width: 100%;
+            margin-bottom: 6px;
         }
         .signature-form textarea {
             resize: vertical;
@@ -72,41 +104,40 @@ def create_css():
     </style>"""
 
 
-def create_signature_form():
-    return """
-    <form class='signature-form' method="post">
+def create_signature_form(values={}, invalid=[], error_msg=""):
+    form = """<form class='signature-form' method="post">{error_msg}
         <table role='presentation'>
             <tbody>
                 <tr>
-                    <td>
+                    <td class="{first_name_label}" style="width: 50%">
                         <label for='first_name'>First name</label>
-                        <input type='text' id='first_name' name="first_name">
+                        <input type='text' id='first_name' name="first_name" value="{first_name}">
                     </td>
-                    <td>
+                    <td class="{last_name_label}" style="width: 50%">
                         <label for='last_name'>Last name</label>
-                        <input type='text' id='last_name' name="last_name">
+                        <input type='text' id='last_name' name="last_name" value="{last_name}">
                     </td>
                 </tr>
                 <tr>
-                    <td colspan='2'>
+                    <td class="{email_label}"colspan='2'>
                         <label for='email'>Email address</label>
-                        <input type='email' id='email' name='email'>
+                        <input type='email' id='email' name='email' value="{email}">
                     </td>
                 </tr>
                 <tr>
                     <td colspan='2'>
                         <label for='comment'>Comment <small>(optional)</small></label>
-                        <textarea id='comment' name='comment'></textarea>
+                        <textarea id='comment' name='comment'>{comment}</textarea>
                     </td>
                 </tr>
                 <tr>
-                    <td colspan='2'>
+                    <td class="{is_australian_label}" colspan='2'>
                         <span>Are you Australian?</span>
                         <div class='radio'>
-                            <input type='radio' id="is_australian_true" name="is_australian" value="true"> Yes
+                            <input type='radio' id="is_australian_true" name="is_australian" {is_australian_true} value="true"> Yes
                         </div>
                         <div class='radio'>
-                            <input type='radio' id="is_australian_false" name="is_australian" value="false"> No
+                            <input type='radio' id="is_australian_false" name="is_australian" {is_australian_false} value="false"> No
                         </div>
                     </td>
                 </tr>
@@ -120,6 +151,55 @@ def create_signature_form():
     </form>
     """
 
+    o = values
+    missing = False
+
+    for name in ['first_name', 'last_name', 'email', 'is_australian']:
+        if name in invalid:
+            o[name + "_label"] = "error" #" <span class='error'>required field</span>"
+            missing = True
+        else: 
+            o[name + "_label"] = ""
+    
+    o['is_australian_false'] = ""
+    o['is_australian_true'] = ""
+    
+    if o.get('is_australian') == True:
+        o['is_australian_true'] = "checked"
+    elif o.get('is_australian') == False:
+        o['is_australian_false'] = "checked"
+    
+    if missing:
+        error_msg = "<div class='error'>There are incomplete fields.</div>"
+    
+    return form.format(error_msg=error_msg, **o)
+            
+    
+class SignatureHandler(tornado.web.RequestHandler):
+    def get(self, petition_id):
+        petition = db.petitions.find_one({"sid": petition_id})
+        if petition is None:
+            raise HTTPError(404)
+
+        signatures = db.signatures.find({"pid": petition['_id']})
+        signatures = [Signature(**signature) for signature in signatures]
+
+        headers = ['First Name', 'Last Name', 'Email', 'Is Australian?', 'Comments']
+        table = []
+        for s in signatures:
+            row = []
+            row.append(s.first_name)
+            row.append(s.last_name)
+            row.append(s.email)
+            row.append(str(s.is_australian))
+            row.append(s.comment or "")
+            table.append(row)
+        table = create_table(table, headers)
+        
+        chunk = "<header>\n<h1>%s</h1>\n<p>%s</p>\n</header>\n" % (petition['title'], petition['message'])
+        body = [chunk, "<hr>", table]
+        self.write(create_html5_page(petition_id, [create_css()], body))
+
 
 class PetitionHandler(tornado.web.RequestHandler):
     def get(self, petition_id):
@@ -127,29 +207,77 @@ class PetitionHandler(tornado.web.RequestHandler):
         if petition is None:
             raise HTTPError(404)
         
-        chunk = ("<header>\n<h1>%s</h1>\n<p>%s</p>\n</header>\n" 
-                % (petition['title'], petition['message']))
+        chunk = "<header>\n<h1>%s</h1>\n<p>%s</p>\n</header>\n" % (petition['title'], petition['message'])
         head = [create_css()]
-        body = [chunk, create_signature_form()]
+        body = [chunk, "<hr>", create_signature_form(get_fields(Signature()))]
         
         self.write(create_html5_page(petition['title'], head, body))
 
 
     def post(self, petition_id):
+        petition = db.petitions.find_one({"sid": petition_id})
+        if petition is None:
+            raise HTTPError(404)
+        
         sig = Signature()
-        sig.first_name = self.get_argument("first_name")
-        sig.last_name = self.get_argument("last_name")
-        sig.email = self.get_argument("email")
-        sig.is_australian = self.get_argument("is_australian") == "true"
+        sig.pid = petition['_id']
+        petition = Petition(**petition)
+
+        sig.first_name = self.get_argument("first_name", None)
+        sig.last_name = self.get_argument("last_name", None)
+        sig.email = self.get_argument("email", None)
+        sig.comment = self.get_argument("comment", None)
+        
+        is_australian = self.get_argument("is_australian", None)
+        if is_australian is not None:
+            is_australian = is_australian == "true"
+        sig.is_australian = is_australian
+        
         sig.signed_on = datetime.datetime.utcnow()
-        self.write(sig.to_json())
+        error_fields = []
+
+        try:
+            sig.validate(True)
+        except Exception as e:
+            error_fields = [error.field_name for error in e.error_list]
+           
+        chunk = "<header>\n<h1>%s</h1>\n<p>%s</p>\n</header>\n" %\
+            (petition['title'], petition['message'])
+        head = [create_css()]
+        body = [chunk, "<hr>"]
+        
+        if len(error_fields) > 0:
+            body.append(create_signature_form(get_fields(sig), error_fields))
+        
+        else:
+            signature = db.signatures.find_one({"pid": sig.pid, "email": sig.email})
+            if signature is not None:
+                body.append("<span>This email has already signed this petition. Thanks!</span>")
+            else:
+                db.signatures.insert(sig.to_python())
+                body.append("<span>Signature added successfully. Thanks!</span>")
+
+        body.append("<br><br>")
+        body.append("<a href='http://pirateparty.org.au' target='_top'>Pirate Party Australia</a>")
+        self.write(create_html5_page(petition['title'], head, body))
+
+
+class TestHandler(tornado.web.RequestHandler):
+    def get(self, petition_id):
+        petition = db.petitions.find_one({"sid": petition_id})
+        
+        head = []
+        body = ["<iframe height='500' width='300' src='/" + petition_id + "'></iframe>"]
+        self.write(create_html5_page(petition_id, head, body))
 
 
 db = pymongo.Connection().petitions
 
 application = tornado.web.Application([
+    (r"/signatures/(.*)", SignatureHandler),
     (r"/(.*)", PetitionHandler),
 ], db=db)
+
 
 if __name__ == "__main__":
     application.listen(8888)
