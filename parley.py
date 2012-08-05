@@ -3,6 +3,8 @@ import tornado.web
 import datetime
 import pymongo
 import json
+import logging
+logging.basicConfig(level="INFO")
 
 from tornado.web import HTTPError
 from dictshield.document import Document
@@ -74,8 +76,12 @@ def create_table(table, headers=None):
 
 def create_css():
     return """<style type="text/css">
-        .signature-form {
+        body {
             font-family: sans-serif;
+        }
+        .logo {
+            float: right;
+            padding: 0px 4px 16px 16px;
         }
         .signature-form .error {
             color: red;
@@ -111,6 +117,7 @@ def create_css():
 
 def create_signature_form(values={}, invalid=[], error_msg=""):
     form = """<form class='signature-form' method="post">{error_msg}
+        <h2>Sign the petition!</h2>
         <table role='presentation'>
             <tbody>
                 <tr>
@@ -208,7 +215,7 @@ class SignatureHandler(tornado.web.RequestHandler):
             table.append(row)
         table = create_table(table, headers)
         
-        chunk = "<header>\n<h1>%s</h1>\n<p>%s</p>\n</header>\n" % (petition['title'], petition['message'])
+        chunk = "<div class='header'>\n<h1>%s</h1>\n<p>%s</p>\n</div>\n" % (petition['title'], petition['message'])
         body = [chunk, "<hr>", table]
         self.write(create_html5_page(petition_id, [create_css()], body))
 
@@ -234,13 +241,18 @@ class JSONPetitionHandler(tornado.web.RequestHandler):
         self.write(json.dumps(petition))
 
 
+class FaviconHandler(tornado.web.RequestHandler):
+    def get(self):
+        pass
+
+
 class PetitionHandler(tornado.web.RequestHandler):
     def get(self, petition_id):
         petition = db.petitions.find_one({"sid": petition_id})
         if petition is None:
             raise HTTPError(404)
         
-        chunk = "<header>\n<h1>%s</h1>\n<p>%s</p>\n</header>\n" % (petition['title'], petition['message'])
+        chunk = "<div class='header'>\n<a href='http://pirateparty.org.au/'><img src='https://join.pirateparty.org.au/logo.png' class='logo' alt='Pirate Party Australia logo'></a>\n<h1>%s</h1>\n<p>%s</p>\n</div>\n" % (petition['title'], petition['message'])
         head = [create_css()]
         body = [chunk, "<hr>", create_signature_form(get_fields(Signature()))]
         
@@ -273,11 +285,10 @@ class PetitionHandler(tornado.web.RequestHandler):
             sig.validate(True)
         except Exception as e:
             error_fields = [error.field_name for error in e.error_list]
-           
-        chunk = "<header>\n<h1>%s</h1>\n<p>%s</p>\n</header>\n" %\
-            (petition['title'], petition['message'])
+        
+        chunk = "<div class='header'>\n<a href='http://pirateparty.org.au/'><img src='https://join.pirateparty.org.au/logo.png' class='logo' alt='Pirate Party Australia logo'></a>\n<h1>%s</h1>\n<p>%s</p>\n</div>\n" % (petition['title'], petition['message'])
         head = [create_css()]
-        body = [chunk, "<hr>"]
+        body = []
         
         if len(error_fields) > 0:
             body.append(create_signature_form(get_fields(sig), error_fields))
@@ -286,15 +297,17 @@ class PetitionHandler(tornado.web.RequestHandler):
             signature = db.signatures.find_one({"pid": sig.pid, "email": sig.email})
             if signature is not None:
                 body.append("<span>This email has already signed this petition. Thanks!</span>")
+                logging.warn("[%s] Email '%s' attempted to sign again." % (self.request.remote_ip, sig.email))
             else:
                 db.signatures.insert(sig.to_python())
                 body.append("<span>Signature added successfully. Thanks!</span>")
+                logging.info("[%s] Email '%s' signed." % (self.request.remote_ip, sig.email))
 
-        body.append("<br><br>")
-        body.append("<a href='http://pirateparty.org.au' target='_top'>Pirate Party Australia</a>")
+        body += ["<hr>", chunk]
+
         self.write(create_html5_page(petition['title'], head, body))
 
-
+'''
 class TestHandler(tornado.web.RequestHandler):
     def get(self, petition_id):
         petition = db.petitions.find_one({"sid": petition_id})
@@ -302,12 +315,13 @@ class TestHandler(tornado.web.RequestHandler):
         head = []
         body = ["<iframe height='500' width='300' src='/" + petition_id + "'></iframe>"]
         self.write(create_html5_page(petition_id, head, body))
-
+'''
 
 db = pymongo.Connection().petitions
 
 application = tornado.web.Application([
-    (r"/signatures/(.*)", SignatureHandler),
+    #(r"/signatures/(.*)", SignatureHandler),
+    (r"/favicon.ico", FaviconHandler),
     (r"/(.*).jsonp", JSONPPetitionHandler),
     (r"/(.*).json", JSONPetitionHandler),
     (r"/(.*)", PetitionHandler),
