@@ -339,31 +339,28 @@ class PetitionHandler(tornado.web.RequestHandler):
         except Exception as e:
             error_fields = [error.field_name for error in e.error_list]
         
-        chunk = """<div class='header'>
-            <h1>%s</h1>
-            <p>%s</p>
-        </div>""" % (petition['title'], petition['message'])
         logo = """<a href='http://pirateparty.org.au/'>
             <img src='https://join.pirateparty.org.au/logo.png' class='logo' alt='Pirate Party Australia logo'>
         </a>"""
-        
-        newchunk = """<div class='header'>
+        chunk = """<div class='header'>
             <table role='presentation'>
                 <tr>
                     <td>
-                        <h1>%s</h1>
+                        %s
                     </td>
                     <td>
-                        %s
+                        <h1>%s</h1>
                     </td>
                 </tr>
             </table>
+            <div>%s</div>
         </div>
-        """
+        """ % (logo, petition['title'], petition['message'])
         
-        head = [create_css()]
-        body = [logo] 
-        if len(error_fields) > 0:
+		head = [create_css()]
+        body = [] 
+        
+		if len(error_fields) > 0:
             body += [create_signature_form(get_fields(sig), error_fields), create_share_box(), chunk]
         else:
             signature = db.signatures.find_one({"pid": sig.pid, "email": sig.email})
