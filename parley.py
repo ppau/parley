@@ -139,7 +139,7 @@ def create_css():
         }
         .signature-form .radio {
             display: inline-block; *display: inline; zoom: 1;
-            width: 50px;
+            width: 52px;
             padding-left: 10px;
         }
     </style>"""
