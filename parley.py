@@ -357,10 +357,10 @@ class PetitionHandler(tornado.web.RequestHandler):
         </div>
         """ % (logo, petition['title'], petition['message'])
         
-		head = [create_css()]
+        head = [create_css()]
         body = [] 
         
-		if len(error_fields) > 0:
+        if len(error_fields) > 0:
             body += [create_signature_form(get_fields(sig), error_fields), create_share_box(), chunk]
         else:
             signature = db.signatures.find_one({"pid": sig.pid, "email": sig.email})
