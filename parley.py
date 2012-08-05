@@ -78,10 +78,38 @@ def create_css():
     return """<style type="text/css">
         body {
             font-family: sans-serif;
+            background-color: #ccc;
         }
-        .logo {
+        td {
+            vertical-align: top;
+        }
+        .signature-form, .share-box {
             float: right;
-            padding: 0px 4px 16px 16px;
+            clear: right;
+            border: 1px solid gray;
+            background-color: #eee;
+            margin-left: 6px;
+            margin-bottom: 6px;
+            padding: 6px;
+            width: 280px;
+        }
+        .share-box iframe {
+            float: left;
+        }
+        .header {
+            background-color: white;
+            border: 1px solid gray;
+            max-width: 800px;
+            padding: 6px;
+        }
+        .header td {
+            vertical-align: middle;
+        }
+        .header h1 {
+            text-align: center;
+        }
+        .signature-form h2 {
+            text-align: center;
         }
         .signature-form .error {
             color: red;
@@ -115,9 +143,19 @@ def create_css():
     </style>"""
 
 
+def create_share_box():
+    return """<div class='share-box'>
+        <a href="https://twitter.com/piratepartyau" class="twitter-follow-button" data-show-count="false">Follow @piratepartyau</a>
+        <script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src="//platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);}}(document,"script","twitter-wjs");</script>
+        <a href="https://twitter.com/intent/tweet?button_hashtag=natsecinquiry&text=I%20just%20signed%20the%20senate%20petition%20regarding%20the%20National%20Security%20Inquiry%20here:" class="twitter-hashtag-button" data-related="piratepartyau" data-url="http://pirateparty.org.au/natsecinquiry-petition">Tweet #natsecinquiry</a>
+        <script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src="//platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);}}(document,"script","twitter-wjs");</script>
+    </div>"""
+
+
 def create_signature_form(values={}, invalid=[], error_msg=""):
-    form = """<form class='signature-form' method="post">{error_msg}
+    form = """<form class='signature-form' method="post">
         <h2>Sign the petition!</h2>
+        {error_msg}
         <table role='presentation'>
             <tbody>
                 <tr>
@@ -251,10 +289,25 @@ class PetitionHandler(tornado.web.RequestHandler):
         petition = db.petitions.find_one({"sid": petition_id})
         if petition is None:
             raise HTTPError(404)
-        
-        chunk = "<div class='header'>\n<a href='http://pirateparty.org.au/'><img src='https://join.pirateparty.org.au/logo.png' class='logo' alt='Pirate Party Australia logo'></a>\n<h1>%s</h1>\n<p>%s</p>\n</div>\n" % (petition['title'], petition['message'])
+        logo = """<a href='http://pirateparty.org.au/'>
+            <img src='https://join.pirateparty.org.au/logo.png' class='logo' alt='Pirate Party Australia logo'>
+        </a>"""
+        chunk = """<div class='header'>
+            <table role='presentation'>
+                <tr>
+                    <td>
+                        %s
+                    </td>
+                    <td>
+                        <h1>%s</h1>
+                    </td>
+                </tr>
+            </table>
+            <div>%s</div>
+        </div>
+        """ % (logo, petition['title'], petition['message'])
         head = [create_css()]
-        body = [chunk, "<hr>", create_signature_form(get_fields(Signature()))]
+        body = [create_signature_form(get_fields(Signature())), create_share_box(), chunk]
         
         self.write(create_html5_page(petition['title'], head, body))
 
@@ -286,24 +339,43 @@ class PetitionHandler(tornado.web.RequestHandler):
         except Exception as e:
             error_fields = [error.field_name for error in e.error_list]
         
-        chunk = "<div class='header'>\n<a href='http://pirateparty.org.au/'><img src='https://join.pirateparty.org.au/logo.png' class='logo' alt='Pirate Party Australia logo'></a>\n<h1>%s</h1>\n<p>%s</p>\n</div>\n" % (petition['title'], petition['message'])
+        chunk = """<div class='header'>
+            <h1>%s</h1>
+            <p>%s</p>
+        </div>""" % (petition['title'], petition['message'])
+        logo = """<a href='http://pirateparty.org.au/'>
+            <img src='https://join.pirateparty.org.au/logo.png' class='logo' alt='Pirate Party Australia logo'>
+        </a>"""
+        
+        newchunk = """<div class='header'>
+            <table role='presentation'>
+                <tr>
+                    <td>
+                        <h1>%s</h1>
+                    </td>
+                    <td>
+                        %s
+                    </td>
+                </tr>
+            </table>
+        </div>
+        """
+        
         head = [create_css()]
-        body = []
-        
+        body = [logo] 
         if len(error_fields) > 0:
-            body.append(create_signature_form(get_fields(sig), error_fields))
-        
+            body += [create_signature_form(get_fields(sig), error_fields), create_share_box(), chunk]
         else:
             signature = db.signatures.find_one({"pid": sig.pid, "email": sig.email})
             if signature is not None:
-                body.append("<span>This email has already signed this petition. Thanks!</span>")
+                body.append("<div class='signature-form'>This email has already signed this petition. Thanks!</div>")
                 logging.warn("[%s] Email '%s' attempted to sign again." % (self.request.remote_ip, sig.email))
             else:
                 db.signatures.insert(sig.to_python())
-                body.append("<span>Signature added successfully. Thanks!</span>")
+                body.append("<div class='signature-form'>Signature added successfully. Thanks!</div>")
                 logging.info("[%s] Email '%s' signed." % (self.request.remote_ip, sig.email))
 
-        body += ["<hr>", chunk]
+            body += [create_share_box(), chunk]
 
         self.write(create_html5_page(petition['title'], head, body))
 
