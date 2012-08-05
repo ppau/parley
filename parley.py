@@ -368,11 +368,11 @@ class PetitionHandler(tornado.web.RequestHandler):
         else:
             signature = db.signatures.find_one({"pid": sig.pid, "email": sig.email})
             if signature is not None:
-                body.append("<div class='signature-form'>This email has already signed this petition. Thanks!</div>")
+                body.append("<div class='signature-form'>A submission from this email address has previously been received. Thank you for your support.</div>")
                 logging.warn("[%s] Email '%s' attempted to sign again." % (self.request.remote_ip, sig.email))
             else:
                 db.signatures.insert(sig.to_python())
-                body.append("<div class='signature-form'>Signature added successfully. Thanks!</div>")
+                body.append("<div class='signature-form'>Submission received. Thank you for your support.</div>")
                 logging.info("[%s] Email '%s' signed." % (self.request.remote_ip, sig.email))
 
             body += [create_share_box(), chunk]
