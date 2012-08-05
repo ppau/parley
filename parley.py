@@ -124,6 +124,8 @@ def create_css():
         .signature-form input[type='email'],
         .signature-form input[type='submit'],
         .signature-form textarea {
+            -webkit-box-sizing: border-box;
+            -moz-box-sizing: border-box;
             box-sizing: border-box;
             width: 100%;
             margin-bottom: 6px;
