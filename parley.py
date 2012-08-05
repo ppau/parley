@@ -2,6 +2,7 @@ import tornado.ioloop
 import tornado.web
 import datetime
 import pymongo
+import json
 
 from tornado.web import HTTPError
 from dictshield.document import Document
@@ -15,6 +16,7 @@ from dictshield.fields import (StringField,
 class Signature(Document):
     first_name = StringField(max_length=200, required=True)
     last_name = StringField(max_length=200, required=True)
+    organisation = StringField(max_length=200)
     email = EmailField(max_length=200, required=True)
     comment = StringField(max_length=140)
     is_australian = BooleanField(required=True)
@@ -92,6 +94,9 @@ def create_css():
             width: 100%;
             margin-bottom: 6px;
         }
+        .signature-form table {
+            width: 100%;
+        }
         .signature-form textarea {
             resize: vertical;
             min-height: 60px;
@@ -119,14 +124,20 @@ def create_signature_form(values={}, invalid=[], error_msg=""):
                     </td>
                 </tr>
                 <tr>
-                    <td class="{email_label}"colspan='2'>
+                    <td colspan='2'>
+                        <label for='organisation'>Organisation <small>(optional)</small></label>
+                        <input type='text' id='organisation' name='organisation' value="{organisation}">
+                    </td>
+                </tr>
+                <tr>
+                    <td class="{email_label}" colspan='2'>
                         <label for='email'>Email address</label>
                         <input type='email' id='email' name='email' value="{email}">
                     </td>
                 </tr>
                 <tr>
                     <td colspan='2'>
-                        <label for='comment'>Comment <small>(optional)</small></label>
+                        <label for='comment'>Comment <small>(optional, max 140 chars)</small></label>
                         <textarea id='comment' name='comment'>{comment}</textarea>
                     </td>
                 </tr>
@@ -156,7 +167,7 @@ def create_signature_form(values={}, invalid=[], error_msg=""):
 
     for name in ['first_name', 'last_name', 'email', 'is_australian']:
         if name in invalid:
-            o[name + "_label"] = "error" #" <span class='error'>required field</span>"
+            o[name + "_label"] = "error"
             missing = True
         else: 
             o[name + "_label"] = ""
@@ -173,8 +184,8 @@ def create_signature_form(values={}, invalid=[], error_msg=""):
         error_msg = "<div class='error'>There are incomplete fields.</div>"
     
     return form.format(error_msg=error_msg, **o)
-            
-    
+
+
 class SignatureHandler(tornado.web.RequestHandler):
     def get(self, petition_id):
         petition = db.petitions.find_one({"sid": petition_id})
@@ -184,12 +195,13 @@ class SignatureHandler(tornado.web.RequestHandler):
         signatures = db.signatures.find({"pid": petition['_id']})
         signatures = [Signature(**signature) for signature in signatures]
 
-        headers = ['First Name', 'Last Name', 'Email', 'Is Australian?', 'Comments']
+        headers = ['First Name', 'Last Name', 'Organisation', 'Email', 'Is Australian?', 'Comments']
         table = []
         for s in signatures:
             row = []
             row.append(s.first_name)
             row.append(s.last_name)
+            row.append(s.organisation or "")
             row.append(s.email)
             row.append(str(s.is_australian))
             row.append(s.comment or "")
@@ -199,6 +211,27 @@ class SignatureHandler(tornado.web.RequestHandler):
         chunk = "<header>\n<h1>%s</h1>\n<p>%s</p>\n</header>\n" % (petition['title'], petition['message'])
         body = [chunk, "<hr>", table]
         self.write(create_html5_page(petition_id, [create_css()], body))
+
+
+class JSONPPetitionHandler(tornado.web.RequestHandler):
+    def get(self, petition_id):
+        jsonp_method = self.get_argument("jsonp", "jsonp")
+        self.set_header("Content-Type", "application/javascript")
+        petition = db.petitions.find_one({"sid": petition_id})
+        if petition is None:
+            raise HTTPError(404)
+        del petition['_id']
+        self.write(jsonp_method + "(" + json.dumps(petition) + ")")
+
+
+class JSONPetitionHandler(tornado.web.RequestHandler):
+    def get(self, petition_id):
+        self.set_header("Content-Type", "application/json")
+        petition = db.petitions.find_one({"sid": petition_id})
+        if petition is None:
+            raise HTTPError(404)
+        del petition['_id']
+        self.write(json.dumps(petition))
 
 
 class PetitionHandler(tornado.web.RequestHandler):
@@ -275,6 +308,8 @@ db = pymongo.Connection().petitions
 
 application = tornado.web.Application([
     (r"/signatures/(.*)", SignatureHandler),
+    (r"/(.*).jsonp", JSONPPetitionHandler),
+    (r"/(.*).json", JSONPetitionHandler),
     (r"/(.*)", PetitionHandler),
 ], db=db)
 
