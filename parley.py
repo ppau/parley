@@ -95,6 +95,7 @@ def create_css():
         }
         .share-box iframe {
             float: left;
+            padding-bottom: 4px;
         }
         .header {
             background-color: white;
@@ -151,6 +152,17 @@ def create_share_box():
         <script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src="//platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);}}(document,"script","twitter-wjs");</script>
         <a href="https://twitter.com/intent/tweet?button_hashtag=natsecinquiry&text=I%20just%20signed%20the%20senate%20petition%20regarding%20the%20National%20Security%20Inquiry%20here:" class="twitter-hashtag-button" data-related="piratepartyau" data-url="http://pirateparty.org.au/natsecinquiry-petition">Tweet #natsecinquiry</a>
         <script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src="//platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);}}(document,"script","twitter-wjs");</script>
+        
+        <div id="fb-root"></div>
+        <script>(function(d, s, id) {
+  var js, fjs = d.getElementsByTagName(s)[0];
+  if (d.getElementById(id)) return;
+  js = d.createElement(s); js.id = id;
+  js.src = "//connect.facebook.net/en_US/all.js#xfbml=1";
+  fjs.parentNode.insertBefore(js, fjs);
+    }(document, 'script', 'facebook-jssdk'));</script>
+        
+        <div class="fb-like" data-href="http://pirateparty.org.au/natsecinquiry-petition" data-send="true" data-width="250" data-show-faces="false"></div>
     </div>"""
 
 
