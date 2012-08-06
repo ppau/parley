@@ -294,6 +294,11 @@ class JSONPetitionHandler(tornado.web.RequestHandler):
         self.write(json.dumps(petition))
 
 
+class IndexHandler(tornado.web.RequestHandler):
+    def get(self):
+        self.redirect("/natsecinquiry")
+
+
 class FaviconHandler(tornado.web.RequestHandler):
     def get(self):
         pass
@@ -412,6 +417,7 @@ application = tornado.web.Application([
     #(r"/signatures/(.*)", SignatureHandler),
     (r"/robots.txt", RobotsHandler),
     (r"/favicon.ico", FaviconHandler),
+    (r"/", IndexHandler),
     (r"/(.*).jsonp", JSONPPetitionHandler),
     (r"/(.*).json", JSONPetitionHandler),
     (r"/(.*)", PetitionHandler),
