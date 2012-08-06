@@ -1,3 +1,4 @@
+import tornado.httpserver
 import tornado.ioloop
 import tornado.web
 import datetime
@@ -298,6 +299,11 @@ class FaviconHandler(tornado.web.RequestHandler):
         pass
 
 
+class RobotsHandler(tornado.web.RequestHandler):
+    def get(self):
+        self.write("User-agent: *\nDisallow:\n")
+
+
 class PetitionHandler(tornado.web.RequestHandler):
     def get(self, petition_id):
         petition = db.petitions.find_one({"sid": petition_id})
@@ -404,6 +410,7 @@ db = pymongo.Connection().petitions
 
 application = tornado.web.Application([
     #(r"/signatures/(.*)", SignatureHandler),
+    (r"/robots.txt", RobotsHandler),
     (r"/favicon.ico", FaviconHandler),
     (r"/(.*).jsonp", JSONPPetitionHandler),
     (r"/(.*).json", JSONPetitionHandler),
@@ -412,5 +419,6 @@ application = tornado.web.Application([
 
 
 if __name__ == "__main__":
-    application.listen(8888)
+    httpserv = tornado.httpserver.HTTPServer(application, xheaders=True)
+    httpserv.listen(8888)
     tornado.ioloop.IOLoop.instance().start()
