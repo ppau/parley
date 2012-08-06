@@ -351,6 +351,7 @@ class PetitionHandler(tornado.web.RequestHandler):
 
         sig.first_name = self.get_argument("first_name", None)
         sig.last_name = self.get_argument("last_name", None)
+        sig.organisation = self.get_argument("organisation", None)
         sig.email = self.get_argument("email", None)
         sig.comment = self.get_argument("comment", None)
         
