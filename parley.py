@@ -110,6 +110,9 @@ def create_css():
         .header h1 {
             text-align: center;
         }
+        .header li {
+            margin-bottom: 0.2em;
+        }
         .signature-form h2 {
             text-align: center;
         }
