@@ -5,15 +5,19 @@ import datetime
 import pymongo
 import json
 import logging
+import urllib.parse
 logging.basicConfig(level="INFO")
 
 from tornado.web import HTTPError
 from dictshield.document import Document
 from dictshield.fields.mongo import ObjectIdField
-from dictshield.fields import (StringField, 
-                               BooleanField, 
+from dictshield.fields import (StringField,
+                               BooleanField,
                                EmailField,
                                DateTimeField)
+
+
+#config = json.load(open("config.json"))
 
 
 class Signature(Document):
@@ -23,7 +27,7 @@ class Signature(Document):
     email = EmailField(max_length=200, required=True)
     comment = StringField(max_length=140)
     is_australian = BooleanField(required=True)
-    pid = ObjectIdField(required=True) 
+    pid = ObjectIdField(required=True)
     signed_on = DateTimeField(required=True)
 
 
@@ -31,7 +35,10 @@ class Petition(Document):
     sid = StringField(max_length=4096)
     title = StringField(max_length=4096)
     message = StringField(max_length=4096)
-
+    disabled = BooleanField()
+    hashtag = StringField(max_length=20)
+    url = StringField(max_length=4096)
+    twitter_msg = StringField(max_length=140)
 
 def get_fields(shield):
     x = shield.to_python()
@@ -125,7 +132,7 @@ def create_css():
         .signature-form label {
             display: block;
         }
-        .signature-form input[type='text'], 
+        .signature-form input[type='text'],
         .signature-form input[type='email'],
         .signature-form input[type='submit'],
         .signature-form textarea {
@@ -150,24 +157,24 @@ def create_css():
     </style>"""
 
 
-def create_share_box():
+def create_share_box(sid, msg, hashtag, url):
     return """<div class='share-box'>
         <a href="https://twitter.com/piratepartyau" class="twitter-follow-button" data-show-count="false">Follow @piratepartyau</a>
-        <script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src="//platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);}}(document,"script","twitter-wjs");</script>
-        <a href="https://twitter.com/intent/tweet?button_hashtag=natsecinquiry&text=I%20just%20signed%20the%20senate%20petition%20regarding%20the%20National%20Security%20Inquiry%20here:" class="twitter-hashtag-button" data-related="piratepartyau" data-url="http://pirateparty.org.au/natsecinquiry-petition">Tweet #natsecinquiry</a>
-        <script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src="//platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);}}(document,"script","twitter-wjs");</script>
+        <script>!function(d,s,id){{var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){{js=d.createElement(s);js.id=id;js.src="//platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);}}}}(document,"script","twitter-wjs");</script>
+        <a href="https://twitter.com/intent/tweet?button_hashtag={hashtag}&text={msg}" class="twitter-hashtag-button" data-related="piratepartyau" data-url="{url}">Tweet #{hashtag}</a>
+        <script>!function(d,s,id){{var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){{js=d.createElement(s);js.id=id;js.src="//platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);}}}}(document,"script","twitter-wjs");</script>
         
         <div id="fb-root"></div>
-        <script>(function(d, s, id) {
+        <script>(function(d, s, id) {{
   var js, fjs = d.getElementsByTagName(s)[0];
   if (d.getElementById(id)) return;
   js = d.createElement(s); js.id = id;
   js.src = "//connect.facebook.net/en_US/all.js#xfbml=1";
   fjs.parentNode.insertBefore(js, fjs);
-    }(document, 'script', 'facebook-jssdk'));</script>
+    }}(document, 'script', 'facebook-jssdk'));</script>
         
-        <div class="fb-like" data-href="http://pirateparty.org.au/natsecinquiry-petition" data-send="true" data-width="250" data-show-faces="false"></div>
-    </div>"""
+        <div class="fb-like" data-href="{url}" data-send="true" data-width="250" data-show-faces="false"></div>
+    </div>""".format(sid=sid, msg=urllib.parse.quote(msg), hashtag=hashtag, url=url)
 
 
 def create_signature_form(values={}, invalid=[], error_msg=""):
@@ -232,7 +239,7 @@ def create_signature_form(values={}, invalid=[], error_msg=""):
         if name in invalid:
             o[name + "_label"] = "error"
             missing = True
-        else: 
+        else:
             o[name + "_label"] = ""
     
     o['is_australian_false'] = ""
@@ -314,7 +321,7 @@ class RobotsHandler(tornado.web.RequestHandler):
 
 class PetitionHandler(tornado.web.RequestHandler):
     def get(self, petition_id):
-        petition = db.petitions.find_one({"sid": petition_id})
+        petition = db.petitions.find_one({"sid": petition_id, "disabled": {"$ne": True}})
         if petition is None:
             raise HTTPError(404)
         logo = """<a href='http://pirateparty.org.au/'>
@@ -335,13 +342,14 @@ class PetitionHandler(tornado.web.RequestHandler):
         </div>
         """ % (logo, petition['title'], petition['message'])
         head = [create_css()]
-        body = [create_signature_form(get_fields(Signature())), create_share_box(), chunk]
+        share_box = create_share_box(petition_id, petition['twitter_msg'], petition['hashtag'], petition['url'])
+        body = [create_signature_form(get_fields(Signature())), share_box, chunk]
         
         self.write(create_html5_page(petition['title'], head, body))
 
 
     def post(self, petition_id):
-        petition = db.petitions.find_one({"sid": petition_id})
+        petition = db.petitions.find_one({"sid": petition_id, "disabled": {"$ne": True}})
         if petition is None:
             raise HTTPError(404)
         
