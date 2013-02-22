@@ -5,7 +5,7 @@ import datetime
 import pymongo
 import json
 import logging
-import urllib.parse
+import urllib
 logging.basicConfig(level="INFO")
 
 from tornado.web import HTTPError
@@ -174,7 +174,7 @@ def create_share_box(sid, msg, hashtag, url):
     }}(document, 'script', 'facebook-jssdk'));</script>
         
         <div class="fb-like" data-href="{url}" data-send="true" data-width="250" data-show-faces="false"></div>
-    </div>""".format(sid=sid, msg=urllib.parse.quote(msg), hashtag=hashtag, url=url)
+    </div>""".format(sid=sid, msg=urllib.quote(msg), hashtag=hashtag, url=url)
 
 
 def create_signature_form(values={}, invalid=[], error_msg=""):
@@ -397,8 +397,9 @@ class PetitionHandler(tornado.web.RequestHandler):
         head = [create_css()]
         body = [] 
         
+        share_box = create_share_box(petition_id, petition['twitter_msg'], petition['hashtag'], petition['url'])
         if len(error_fields) > 0:
-            body += [create_signature_form(get_fields(sig), error_fields), create_share_box(), chunk]
+            body += [create_signature_form(get_fields(sig), error_fields), share_box, chunk]
         else:
             signature = db.signatures.find_one({"pid": sig.pid, "email": sig.email})
             if signature is not None:
@@ -409,7 +410,7 @@ class PetitionHandler(tornado.web.RequestHandler):
                 body.append("<div class='signature-form'>Submission received. Thank you for your support.</div>")
                 logging.info("[%s] Email '%s' signed." % (self.request.remote_ip, sig.email))
 
-            body += [create_share_box(), chunk]
+            body += [share_box, chunk]
 
         self.write(create_html5_page(petition['title'], head, body))
 
